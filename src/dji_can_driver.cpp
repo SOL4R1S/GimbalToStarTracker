@@ -15,7 +15,7 @@ bool DjiCanDriver::begin() {
   twai_general_config_t g = TWAI_GENERAL_CONFIG_DEFAULT(
       static_cast<gpio_num_t>(TRACK_TX_PIN), static_cast<gpio_num_t>(TRACK_RX_PIN),
       TWAI_MODE_NORMAL);
-  twai_timing_config_t t = TWAI_TIMING_CONFIG_1MBITS;  // RS SDK: 1Mbps standard frame
+  twai_timing_config_t t = TWAI_TIMING_CONFIG_1MBITS();  // RS SDK: 1Mbps standard frame
   twai_filter_config_t flt = TWAI_FILTER_CONFIG_ACCEPT_ALL();
   if (twai_driver_install(&g, &t, &flt) != ESP_OK) return false;
   return twai_start() == ESP_OK;
