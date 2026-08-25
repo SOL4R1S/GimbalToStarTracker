@@ -56,14 +56,20 @@ static void loadConfig() {
 
 static void handleStatus() {
   const auto& s = tracker.status();
-  char buf[160];
-  float yaw; bool haveYaw = driver.getYawDeg(yaw);
+  float yaw; const bool haveYaw = driver.getYawDeg(yaw);
+  char buf[320];
   snprintf(buf, sizeof(buf),
-           "{\"phase\":\"%s\",\"frame\":%u,\"frames\":%u,\"trackSteps\":%lu,"
-           "\"yaw\":%s,\"driver\":\"%s\"}",
-           astro::phaseName(s.phase), s.frame, s.frames,
-           static_cast<unsigned long>(s.trackSteps),
-           haveYaw ? String(yaw, 2).c_str() : "null", driver.name());
+    "{\"phase\":\"%s\",\"frame\":%u,\"frames\":%u,\"trackSteps\":%lu,"
+    "\"yaw\":%s,\"driver\":\"%s\",\"testshot\":%s,"
+    "\"cfg\":{\"delay\":%.1f,\"exposure\":%.1f,\"gap\":%.1f,\"frames\":%u,"
+    "\"ditherEvery\":%u,\"ditherAmp\":%.2f,\"settle\":%.1f,\"tracking\":%s}}",
+    astro::phaseName(s.phase), s.frame, s.frames,
+    static_cast<unsigned long>(s.trackSteps),
+    haveYaw ? String(yaw, 2).c_str() : "null", driver.name(),
+    testshot_open_ ? "true" : "false",
+    cfg.startDelayS, cfg.exposureS, cfg.gapS, cfg.frames,
+    cfg.ditherEvery, cfg.ditherAmpDeg, cfg.settleS,
+    cfg.tracking ? "true" : "false");
   server.send(200, "application/json", buf);
 }
 
@@ -101,6 +107,7 @@ void setup() {
 
   server.on("/", [] { server.send_P(200, "text/html", INDEX_HTML); });
   server.on("/status", handleStatus);
+  server.on("/probe", [] { server.send(200, "application/json", driver.probe().c_str()); });
   server.on("/config", HTTP_POST, handleConfig);
   server.on("/start", [] { tracker.start(cfg, millis()); server.send(200, "text/plain", "started"); });
   server.on("/stop",  [] { tracker.stop(millis());  server.send(200, "text/plain", "stopped"); });
