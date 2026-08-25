@@ -73,14 +73,15 @@ class Tracker {
     if (!drv_) return;
     // --- 추적 타이머 (Idle/Done 제외하고 항상 가동 — 촬영 중에도 함께 회전) ---
     if (st_.phase != Phase::Idle && st_.phase != Phase::Done && cfg_.tracking) {
-      while (now >= next_track_ms_) {
+      while (static_cast<int32_t>(now - next_track_ms_) >= 0) {
         drv_->trackYawStep(kTrackStepDeciDeg);           // +0.1° @ 23.9s
         ++st_.trackSteps;
         next_track_ms_ += kTrackStepMs;                  // 누적 드리프트 방지
       }
     }
     // --- 촬영 시퀀스 ---
-    if (st_.phase != Phase::Done && now >= deadline_ms_) step(now);
+    if (st_.phase != Phase::Done && static_cast<int32_t>(now - deadline_ms_) >= 0)
+      step(now);
   }
 
   const Status& status() const { return st_; }
