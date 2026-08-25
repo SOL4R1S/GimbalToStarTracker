@@ -18,6 +18,7 @@ class DjiCanDriver : public GimbalDriver {
   bool shutterOpen() override;
   bool shutterClose() override;
   bool getYawDeg(float& deg) override;
+  std::string probe() override;
 
  private:
   bool send(const std::vector<uint8_t>& frame);

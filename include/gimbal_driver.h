@@ -7,6 +7,7 @@
 //
 
 #include <cstdint>
+#include <string>
 
 class GimbalDriver {
  public:
@@ -33,4 +34,7 @@ class GimbalDriver {
 
   // 마지막으로 수신한 yaw 각도(도). 텔레메트리 없는 브랜드는 false.
   virtual bool getYawDeg(float& deg) { (void)deg; return false; }
+
+  // 통신 진단: 짐벌 응답 수신 가능 여부. JSON 한 줄 반환.
+  virtual std::string probe() { return "{\"ok\":false,\"reason\":\"unsupported\"}"; }
 };

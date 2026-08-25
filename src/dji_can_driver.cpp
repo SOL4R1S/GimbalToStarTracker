@@ -74,3 +74,16 @@ bool DjiCanDriver::shutterOpen()  { return send(dji::cameraShutterCommand(true))
 bool DjiCanDriver::shutterClose() { return send(dji::cameraShutterCommand(false)); }
 
 bool DjiCanDriver::getYawDeg(float& deg) { deg = last_yaw_; return rx_count_ > 0; }
+
+// 진단: getAttitude 전송 후 rx 증가를 500ms 동안 기다려 CAN 응답 확인.
+std::string DjiCanDriver::probe() {
+  uint32_t before = rx_count_;
+  if (!send(dji::getAttitudeCommand())) return "{\"ok\":false,\"reason\":\"tx-failed\"}";
+  const uint32_t t0 = millis();
+  while (millis() - t0 < 500) { poll(); delay(10); }
+  char buf[64];
+  snprintf(buf, sizeof(buf), "{\"ok\":%s,\"rxDelta\":%u}",
+           rx_count_ > before ? "true" : "false",
+           static_cast<unsigned>(rx_count_ - before));
+  return buf;
+}
