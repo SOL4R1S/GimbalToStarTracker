@@ -55,6 +55,7 @@ class Tracker {
   void start(const Config& c, uint32_t now) {
     cfg_ = c; st_.frame = 0; st_.frames = c.frames; st_.trackSteps = 0;
     dither_dir_ = 1;
+    next_track_ms_ = now + kTrackStepMs;   // 앵커: 부팅 후 경과 무관, start 한 주기 뒤부터 정상 주기 추적
     enter(now + static_cast<uint32_t>(c.startDelayS * 1000.f), Phase::Delay);
   }
   void stop(uint32_t now) {
