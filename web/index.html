@@ -32,9 +32,16 @@ button.stop{background:#b91c1c} button.test{background:#334155}
 <button class="test" onclick="fetch('/testshot').then(st)">&#128248; 테스트컷(8s)</button>
 <script>
 function fmt(j){return `phase=${j.phase}<br>frame=${j.frame}/${j.frames}<br>track_steps=${j.trackSteps}`}
-async function st(){try{const j=await(await fetch('/status')).json();document.getElementById('status').innerHTML=fmt(j)}catch(e){}}
+let prefilled=false;
+async function st(){try{const j=await(await fetch('/status')).json();document.getElementById('status').innerHTML=fmt(j);
+ const f=document.getElementById('f');
+ if(!prefilled&&j.cfg)for(const[k,v]of Object.entries(j.cfg)){const el=f.elements[k];if(el&&el.type!=='checkbox')el.value=v}
+ prefilled=true;
+ }catch(e){}}
 document.getElementById('f').onsubmit=async e=>{e.preventDefault();
- await fetch('/config',{method:'POST',body:new URLSearchParams(new FormData(e.target))});
+ const q=new URLSearchParams(new FormData(e.target));
+ for(const[k,v]of[...q])if(v==='')q.delete(k);
+ await fetch('/config',{method:'POST',body:q});
  st()};
 setInterval(st,2000); st();
 </script></body></html>
