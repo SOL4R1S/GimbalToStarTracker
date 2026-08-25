@@ -60,8 +60,9 @@ class Tracker {
   }
   void stop(uint32_t now) {
     if (st_.phase != Phase::Idle && st_.phase != Phase::Done) {
-      // 열린 셔터 방지: Exposing 중 정지면 닫아준다
-      if (st_.phase == Phase::Exposing) drv_->shutterClose();
+      // 열린 셔터 방지: Opening/Exposing 중 정지면 닫아준다
+      if (st_.phase == Phase::Exposing || st_.phase == Phase::Opening)
+        drv_->shutterClose();
     }
     enter(now, Phase::Idle);
   }
