@@ -35,7 +35,7 @@ button.stop{background:#b91c1c} button.test{background:#334155}
 <button class="test" onclick="fetch('/testshot').then(st)">&#128248; 테스트컷(8s)</button>
 <script>
 function fmt(j){return `phase=${j.phase}<br>frame=${j.frame}/${j.frames}<br>track_steps=${j.trackSteps}`}
-async function st(){try{const j=await(await fetch('/status')).json();status.innerHTML=fmt(j)}catch(e){}}
+async function st(){try{const j=await(await fetch('/status')).json();document.getElementById('status').innerHTML=fmt(j)}catch(e){}}
 document.getElementById('f').onsubmit=async e=>{e.preventDefault();
  await fetch('/config',{method:'POST',body:new URLSearchParams(new FormData(e.target))});
  st()};
