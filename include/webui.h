@@ -1,10 +1,7 @@
 #pragma once
-//
-// webui.h — SoftAP 웹 UI (단일 페이지, 외부 의존 없음)
-// 폰에서 http://192.168.4.1 접속. 다크 테마 기본.
-//
-
-static const char INDEX_HTML[] PROGMEM R"HTML(<!doctype html>
+// 자동 생성 파일 — 수정 금지. 원본: web/index.html
+// 재생성: python3 tools/gen_webui.py web/index.html include/webui.h
+static const char INDEX_HTML[] PROGMEM = R"HTML(<!doctype html>
 <html lang="ko"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>AstroTrack</title><style>
