@@ -34,13 +34,17 @@ button.stop{background:#b91c1c} button.test{background:#334155}
 <button class="stop" onclick="fetch('/stop').then(st)">&#11035;&#65039; 정지</button>
 <button class="test" onclick="fetch('/testshot').then(st)">&#128248; 테스트컷(8s)</button>
 <script>
-function fmt(j){return `phase=${j.phase}<br>frame=${j.frame}/${j.frames}<br>track_steps=${j.trackSteps}`}
+const PH_KO={idle:'대기',delay:'대기 딜레이',opening:'셔터 열림',exposing:'노출중',
+closing:'셔터 닫힘',dither:'디더링',settle:'정착',gap:'갭',done:'완료'};
+function fmt(j){return `<b>${PH_KO[j.phase]??j.phase}</b> ${j.phase==='done'?'&#9989;':''}<br>`+
+ `프레임 ${j.frame}/${j.frames}<br>트랙 ${j.trackSteps}스텝 · yaw ${j.yaw??'-'}&deg;<br>`+
+ `<progress max="${j.frames}" value="${j.frame}" style="width:100%">`}
 let prefilled=false;
 async function st(){try{const j=await(await fetch('/status')).json();document.getElementById('status').innerHTML=fmt(j);
  const f=document.getElementById('f');
  if(!prefilled&&j.cfg)for(const[k,v]of Object.entries(j.cfg)){const el=f.elements[k];if(el&&el.type!=='checkbox')el.value=v}
  prefilled=true;
- }catch(e){}}
+ }catch(e){document.getElementById('status').innerHTML='<span style="color:#f87171">&#128279; 연결 끊김 &mdash; AP 확인</span>'}}
 document.getElementById('f').onsubmit=async e=>{e.preventDefault();
  const q=new URLSearchParams(new FormData(e.target));
  for(const[k,v]of[...q])if(v==='')q.delete(k);
