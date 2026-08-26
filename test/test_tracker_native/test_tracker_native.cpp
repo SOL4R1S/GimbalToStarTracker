@@ -47,12 +47,15 @@ int main() {
   }
 
   // 케이스 B: kTrackStepMs 경과 시점 도달 시 정확히 1스텝 추가
+  // (추적 주기만 격리 검증 — 딜레이 창을 스텝 주기보다 길게 명시 고정.
+  //  전역 기본값에 의존하면 기본 딜레이 변경 시 위상 전이가 개입해 깨진다)
   {
+    astro::Config c; c.startDelayS = 120.f;
     CountingDriver drv;
     astro::Tracker t;
     t.bind(drv);
     const uint32_t now = 86400000u;
-    t.start(cfg, now);
+    t.start(c, now);
     t.tick(now);                            // 앵커 시점: 스텝 없음
     t.tick(now + kStep - 1);                // 직전: 아래야 함
     CHECK(drv.steps_ == 0, "B1: no step just before schedule");
