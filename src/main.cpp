@@ -59,11 +59,13 @@ static void handleStatus() {
   float yaw; const bool haveYaw = driver.getYawDeg(yaw);
   char buf[320];
   snprintf(buf, sizeof(buf),
-    "{\"phase\":\"%s\",\"frame\":%u,\"frames\":%u,\"trackSteps\":%lu,"
+    "{\"phase\":\"%s\",\"remainS\":%u,\"frame\":%u,\"frames\":%u,\"trackSteps\":%lu,"
     "\"yaw\":%s,\"driver\":\"%s\",\"testshot\":%s,"
     "\"cfg\":{\"delay\":%.1f,\"exposure\":%.1f,\"gap\":%.1f,\"frames\":%u,"
     "\"ditherEvery\":%u,\"ditherAmp\":%.2f,\"settle\":%.1f,\"tracking\":%s}}",
-    astro::phaseName(s.phase), s.frame, s.frames,
+    astro::phaseName(s.phase),
+    static_cast<unsigned>(tracker.remainingMs(millis()) / 1000u),
+    s.frame, s.frames,
     static_cast<unsigned long>(s.trackSteps),
     haveYaw ? String(yaw, 2).c_str() : "null", driver.name(),
     testshot_open_ ? "true" : "false",

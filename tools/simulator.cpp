@@ -58,11 +58,13 @@ int main(int argc, char** argv) {
     char buf[320];
     float yaw; drv.getYawDeg(yaw);
     snprintf(buf, sizeof(buf),
-      "{\"phase\":\"%s\",\"frame\":%u,\"frames\":%u,\"trackSteps\":%lu,"
+      "{\"phase\":\"%s\",\"remainS\":%u,\"frame\":%u,\"frames\":%u,\"trackSteps\":%lu,"
       "\"yaw\":%.2f,\"driver\":\"%s\",\"testshot\":%s,"
       "\"cfg\":{\"delay\":%.1f,\"exposure\":%.1f,\"gap\":%.1f,\"frames\":%u,"
       "\"ditherEvery\":%u,\"ditherAmp\":%.2f,\"settle\":%.1f,\"tracking\":%s}}",
-      astro::phaseName(s.phase), s.frame, s.frames,
+      astro::phaseName(s.phase),
+      static_cast<unsigned>(tracker.remainingMs(nowMs()) / 1000u),
+      s.frame, s.frames,
       static_cast<unsigned long>(s.trackSteps), yaw, drv.name(),
       testshot_open ? "true" : "false",
       cfg.startDelayS, cfg.exposureS, cfg.gapS, cfg.frames,

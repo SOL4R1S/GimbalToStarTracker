@@ -36,7 +36,8 @@ button.stop{background:#b91c1c} button.test{background:#334155}
 <script>
 const PH_KO={idle:'대기',delay:'대기 딜레이',opening:'셔터 열림',exposing:'노출중',
 closing:'셔터 닫힘',dither:'디더링',settle:'정착',gap:'갭',done:'완료'};
-function fmt(j){return `<b>${PH_KO[j.phase]??j.phase}</b> ${j.phase==='done'?'&#9989;':''}<br>`+
+function fmt(j){return `<b>${PH_KO[j.phase]??j.phase}</b> ${j.phase==='done'?'&#9989;':''}`+
+ `${(j.remainS>0)?` &middot; 남음 ${j.remainS}s`:''}<br>`+
  `프레임 ${j.frame}/${j.frames}<br>트랙 ${j.trackSteps}스텝 · yaw ${j.yaw??'-'}&deg;<br>`+
  `<progress max="${j.frames}" value="${j.frame}" style="width:100%">`}
 let prefilled=false;
