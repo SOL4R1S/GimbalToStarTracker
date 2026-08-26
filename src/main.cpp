@@ -43,7 +43,7 @@ static void saveConfig() {
 
 static void loadConfig() {
   prefs.begin("astro", true);
-  cfg.startDelayS = prefs.getFloat("delay", 120.f);
+  cfg.startDelayS = prefs.getFloat("delay", 5.f);
   cfg.exposureS   = prefs.getFloat("exp", 30.f);
   cfg.gapS        = prefs.getFloat("gap", 5.f);
   cfg.frames      = prefs.getUShort("frames", 60);

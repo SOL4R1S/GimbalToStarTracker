@@ -20,7 +20,7 @@ constexpr int16_t  kTrackStepDeciDeg = 1;       // 스텝당 0.1°
 constexpr uint32_t kTrackStepMs      = 23934;   // 0.1° ÷ ω × 1000 (오차 ≈ +20ppm)
 
 struct Config {
-  float    startDelayS = 120.f;   // 시작 전 대기 (극축정렬·프레이밍 후 이탈용)
+  float    startDelayS = 5.f;     // 시작 전 대기. 벤치 테스트 친화 기본값 — 야외 워크플로에선 UI에서 늘려 쓰기
   float    exposureS   = 30.f;
   float    gapS        = 5.f;
   uint16_t frames      = 60;
