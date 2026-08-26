@@ -116,7 +116,7 @@ inline bool ZhiyunBleDriver::begin() {
   if (connected_) return true;
   if (g_zyInstance != nullptr && g_zyInstance != this) return false;
 
-  NimBLEDevice::init("AstroTrack");
+  NimBLEDevice::init("GimbalToStarTracker");
   // 보딩 필수: bond + Secure Connections. MITM은 IO가 NoInputNoOutput라 성립 안 함.
   NimBLEDevice::setSecurityAuth(true, false, true);
   NimBLEDevice::setSecurityIOCap(BLE_HS_IO_NO_INPUT_OUTPUT);
