@@ -25,5 +25,6 @@ class DjiCanDriver : public GimbalDriver {
 
   dji::PacketParser parser_;
   float    last_yaw_ = 0.f;
-  uint32_t tx_count_ = 0, rx_count_ = 0;
+  bool     yaw_valid_ = false;
+  uint32_t tx_count_ = 0, rx_count_ = 0, attitude_rx_count_ = 0;
 };

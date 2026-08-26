@@ -29,13 +29,11 @@ void DjiCanDriver::poll() {
     std::vector<std::vector<uint8_t>> done;
     parser_.feed(m.data, m.data_length_code, done);
     for (auto& f : done) {
-      // 응답 프레임 파싱: DATA = CmdSet CmdID [rc ...]. 자세각 응답(0x0E/0x02)이면 yaw 갱신.
-      if (f.size() < 16 || f[14] != dji::kCmdSetGimbal || f[15] != 0x02) continue;
-      // 응답 페이로드 배치는 문서에 그림 생략 구간이 있어 최소 검증만:
-      // rc(1)+data_type(1)+int16×3 가정 — 텔레메트리 용도라 임계경로 아님.
-      if (f.size() >= 24) {
-        int16_t yaw = static_cast<int16_t>(f[18] | (f[19] << 8));
-        last_yaw_ = yaw * 0.1f;
+      float yaw;
+      if (dji::parseAttitudeResponse(f, yaw)) {
+        last_yaw_ = yaw;
+        yaw_valid_ = true;
+        ++attitude_rx_count_;
       }
     }
   }
@@ -73,17 +71,20 @@ bool DjiCanDriver::ditherPitch(int16_t deci_deg) {
 bool DjiCanDriver::shutterOpen()  { return send(dji::cameraShutterCommand(true)); }
 bool DjiCanDriver::shutterClose() { return send(dji::cameraShutterCommand(false)); }
 
-bool DjiCanDriver::getYawDeg(float& deg) { deg = last_yaw_; return rx_count_ > 0; }
+bool DjiCanDriver::getYawDeg(float& deg) {
+  deg = last_yaw_;
+  return yaw_valid_;
+}
 
 // 진단: getAttitude 전송 후 rx 증가를 500ms 동안 기다려 CAN 응답 확인.
 std::string DjiCanDriver::probe() {
-  uint32_t before = rx_count_;
+  const uint32_t before = attitude_rx_count_;
   if (!send(dji::getAttitudeCommand())) return "{\"ok\":false,\"reason\":\"tx-failed\"}";
   const uint32_t t0 = millis();
   while (millis() - t0 < 500) { poll(); delay(10); }
-  char buf[64];
+  char buf[96];
   snprintf(buf, sizeof(buf), "{\"ok\":%s,\"rxDelta\":%u}",
-           rx_count_ > before ? "true" : "false",
-           static_cast<unsigned>(rx_count_ - before));
+           attitude_rx_count_ > before ? "true" : "false",
+           static_cast<unsigned>(attitude_rx_count_ - before));
   return buf;
 }

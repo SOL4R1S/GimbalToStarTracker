@@ -101,6 +101,16 @@ std::vector<uint8_t> getAttitudeCommand() {
   return makeFrame(kCmdTypeReplyRequired, kCmdSetGimbal, 0x02, {0x01});
 }
 
+bool parseAttitudeResponse(const std::vector<uint8_t>& frame, float& yaw_deg) {
+  // 12-byte header + CmdSet/CmdID + rc/type + yaw/roll/pitch + CRC32.
+  if (frame.size() < 26 || frame[12] != kCmdSetGimbal || frame[13] != 0x02 ||
+      frame[14] != 0x00) return false;
+  const int16_t yaw = static_cast<int16_t>(
+      static_cast<uint16_t>(frame[16]) | (static_cast<uint16_t>(frame[17]) << 8));
+  yaw_deg = static_cast<float>(yaw) * 0.1f;
+  return true;
+}
+
 std::vector<uint8_t> cameraShutterCommand(bool open) {
   uint16_t v = open ? 0x0001 : 0x0002;
   return makeFrame(kCmdTypeReplyRequired, kCmdSetCamera, 0x00,

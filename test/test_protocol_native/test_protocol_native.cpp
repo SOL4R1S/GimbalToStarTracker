@@ -69,6 +69,21 @@ int main() {
         CHECK(done.size() == 1, "self-built frame passes own parser");
     }
 
+    // ---- 5. 자세 응답 필드 검증 ----
+    {
+        auto response = makeFrame(0x03, kCmdSetGimbal, 0x02,
+                                  {0x00, 0x00, 0xD2, 0x04, 0x00, 0x00, 0x00, 0x00},
+                                  0x2211);
+        float yaw = 0.f;
+        CHECK(parseAttitudeResponse(response, yaw) && std::fabs(yaw - 123.4f) < 0.01f,
+              "attitude response decodes yaw from payload");
+        auto wrong = response;
+        wrong[13] = 0x01;
+        CHECK(!parseAttitudeResponse(wrong, yaw), "non-attitude response rejected");
+        response.resize(18);
+        CHECK(!parseAttitudeResponse(response, yaw), "truncated attitude response rejected");
+    }
+
     // ---- 5. 시디리얼 스텝 수치 ----
     {
         double ours  = 0.1 * 1000.0 / 23934.0;                 // °/s (+0.1°/23934ms)

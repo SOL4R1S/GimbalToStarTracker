@@ -56,6 +56,9 @@ std::vector<uint8_t> positionCommand(int16_t yaw_deci, int16_t roll_deci, int16_
 // §2.3.4.3 짐벌 자세각 요청 (type 0x01 = attitude)
 std::vector<uint8_t> getAttitudeCommand();
 
+// 자세 응답 프레임에서 yaw를 도 단위로 추출. frame은 CRC 검증을 통과한 값이어야 한다.
+bool parseAttitudeResponse(const std::vector<uint8_t>& frame, float& yaw_deg);
+
 // §2.3.5 카메라 제어 — 0x0001 셔터 열림 / 0x0002 해제 (유선 컨트롤 케이블 경로)
 std::vector<uint8_t> cameraShutterCommand(bool open);
 
