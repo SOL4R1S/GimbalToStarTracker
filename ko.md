@@ -124,18 +124,27 @@ g++ -std=c++17 -I include src/zhiyun_frame.cpp test/test_zhiyun_native/test_zhiy
 
 1. 밸런싱 → 짐벌 모드 스위치를 **FPV**로 → 블루투스 셔터 페어링 삭제(유선 전용)
 2. RS 4 ↔ 카메라 컨트롤 케이블 연결 후 짐벌 셔터 버튼 반누름 — AF 반응이면 유선 채널 정상
-3. ESP32 전원 → AstroTrack이 아닌 **GimbalToStarTracker** AP 접속 → `http://192.168.4.1`
+3. ESP32 전원 → **GimbalToStarTracker** AP 접속 → `http://192.168.4.1`
 4. 딜레이/노출/갭/프레임/디더링 설정 → 시작 → 폰은 치워두기
 5. 보드의 BOOT 버튼 = 물리 시작/정지 토글
 
 프레이밍 팁: 흐릿한 목표는 라이브뷰에 안 보입니다. **테스트컷**(ISO 12800 / 8s) 버튼으로 촬영해 카메라 LCD에서 확인하세요.
+
+## 런타임 안전·API 동작
+
+- 시퀀스가 활성화된 동안 `/start`와 `/testshot`은 HTTP **409**를 반환합니다. 촬영 중 두 번째 시작 요청으로 노출 상태를 초기화할 수 없습니다.
+- 활성 상태에서 `/config`는 HTTP **409**, 잘못된 값은 HTTP **400**입니다. 허용 범위는 딜레이/노출/갭 `0–86400초`, 프레임 `1–65535`, 디더 진폭 `0–10°`, 정착 `0.5–60초`, 디더 주기 `0–255`입니다.
+- 짐벌 명령 실패 시 `fault` 상태로 전환하고 셔터 닫기를 시도합니다. 오류 원인은 `/status`의 `fault` 필드로 확인합니다.
+- 제어 루프가 지연돼도 추적 스텝을 한 번만 보내고 현재 시각에 재앵커링합니다. 오래된 스텝을 한꺼번에 보내지 않습니다.
+- **ZHIYUN은 compile-only**입니다. Weebill-S/Crane M3 실기로 BLE 보딩·위치 스케일·디더링·셔터 해제를 검증하기 전에는 런타임 선택하지 않습니다. 기본 펌웨어는 DJI RS를 선택합니다.
+
 
 ## 짐벌 지원 현황
 
 | 브랜드 | 상태 | 경로 |
 |---|---|---|
 | DJI RS 3 Pro / RS 4 / RS 4 Pro / RS 5 | ✅ 구현 완료 (실기 브링업 대기) | 공식 RS SDK over CAN |
-| ZHIYUN Weebill-S / Crane M3 세대 | 🟡 코드 완성, 빌드 게이트만 통과 | 역설계 BLE(`0xFEE9`, 보딩 필수). 속도 LSB ≈ 0.11°/s라 pan 위치 cmd `0x08` 미세 증분 연쇄 사용 — 실기 캘리브레이션 필요 |
+| ZHIYUN Weebill-S / Crane M3 세대 | 🟡 compile-only; 런타임 선택·실기 검증 대기 | 역설계 BLE(`0xFEE9`, 보딩 필수). pan 위치 cmd `0x08`은 아직 production 경로로 활성화하지 않음 |
 | FeiyuTech Weebill/AK/SCORP | ❌ 조사 백로그 | 공개 SDK 없음. UART 스니핑이 선행 과제 |
 
 새 브랜드 추가 = [`include/gimbal_driver.h`](include/gimbal_driver.h) 인터페이스 구현(~8개 메서드). 조사 결과가 주석으로 정리된 스텁: [`include/zhiyun_ble_driver.h`](include/zhiyun_ble_driver.h), [`include/feiyu_serial_driver.h`](include/feiyu_serial_driver.h).

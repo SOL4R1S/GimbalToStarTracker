@@ -132,12 +132,21 @@ mkdir -p build && g++ -std=c++17 -Wall -I include -I third_party \
 
 Framing tip: faint targets won't show in live view. Use the **Test shot** button (ISO 12800 / 8 s) and review on the camera LCD.
 
+## Runtime safety and API behavior
+
+- `/start` and `/testshot` are rejected with HTTP **409** while a sequence is active; a second start cannot reset an exposure in progress.
+- `/config` is rejected with HTTP **409** while active and HTTP **400** for invalid values. Accepted ranges: delay/exposure/gap `0–86400 s`, frames `1–65535`, dither amplitude `0–10°`, settle `0.5–60 s`, and dither interval `0–255`.
+- A failed gimbal command enters `fault`; the firmware attempts a shutter close and exposes the reason in `/status` as `fault`.
+- A delayed control loop sends at most one tracking step and re-anchors to the current time; it never bursts stale steps.
+- **ZHIYUN is compile-only** until a physical Weebill-S/Crane M3 bring-up validates BLE pairing, position scale, dither, and shutter release. The default firmware selects DJI RS.
+
+
 ## Gimbal support status
 
 | Brand | Status | Path |
 |---|---|---|
 | DJI RS 3 Pro / RS 4 / RS 4 Pro / RS 5 | ✅ implemented (hardware bring-up pending) | official RS SDK over CAN |
-| ZHIYUN Weebill-S / Crane M3 generation | 🟡 code complete, compile-gated only | reverse-engineered BLE (`0xFEE9`, bonding required); speed LSB ≈ 0.11 °/s so it uses chained micro-increments of pan-position cmd `0x08` — needs on-device calibration (`HARDWARE-PENDING` markers in code) |
+| ZHIYUN Weebill-S / Crane M3 generation | 🟡 compile-only; runtime selection and hardware validation pending | reverse-engineered BLE (`0xFEE9`, bonding required); chained pan-position cmd `0x08` is not enabled as a production path yet |
 | FeiyuTech Weebill/AK/SCORP | ❌ research backlog | no public SDK; UART sniffing is the prerequisite |
 
 Adding a brand = implement [`include/gimbal_driver.h`](include/gimbal_driver.h) (~8 methods). See the stubs in [`include/zhiyun_ble_driver.h`](include/zhiyun_ble_driver.h) and [`include/feiyu_serial_driver.h`](include/feiyu_serial_driver.h) for documented findings.
