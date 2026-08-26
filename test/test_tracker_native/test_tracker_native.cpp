@@ -10,16 +10,19 @@
 #include "tracker.h"
 
 #include <cstdio>
+#include <vector>
 
 class CountingDriver : public GimbalDriver {
  public:
   const char* name() const override { return "COUNTING"; }
   bool begin() override { return true; }
-  bool trackYawStep(int16_t) override { ++steps_; return true; }
-  bool ditherPitch(int16_t) override { return true; }
-  bool shutterOpen() override { ++opens_; return true; }
-  bool shutterClose() override { ++closes_; return true; }
+  bool trackYawStep(int16_t) override { ++steps_; return track_ok_; }
+  bool ditherPitch(int16_t d) override { dither_.push_back(d); return dither_ok_; }
+  bool shutterOpen() override { ++opens_; return open_ok_; }
+  bool shutterClose() override { ++closes_; return close_ok_; }
+  bool track_ok_ = true, dither_ok_ = true, open_ok_ = true, close_ok_ = true;
   uint32_t steps_ = 0, opens_ = 0, closes_ = 0;
+  std::vector<int16_t> dither_;
 };
 
 static int failures = 0;
@@ -61,6 +64,71 @@ int main() {
     CHECK(drv.steps_ == 0, "B1: no step just before schedule");
     t.tick(now + kStep);                    // 정각: 정확히 1스텝
     CHECK(drv.steps_ == 1, "B2: exactly one step at kTrackStepMs");
+  }
+
+  // 케이스 G: 추적 전송 실패는 Fault로 전환하고 셔터 닫기를 시도
+  {
+    CountingDriver drv; drv.track_ok_ = false;
+    astro::Tracker t; t.bind(drv);
+    astro::Config c = cfg; c.startDelayS = 120.f;
+    const uint32_t now = 100000u;
+    t.start(c, now);
+    t.tick(now + kStep);
+    CHECK(t.status().phase == astro::Phase::Fault, "G1: track failure enters Fault");
+    CHECK(drv.closes_ == 1, "G2: track failure attempts shutter close");
+  }
+
+  // 케이스 H: 셔터 열기 실패도 Fault로 전환하고 정리 닫기를 시도
+  {
+    CountingDriver drv; drv.open_ok_ = false;
+    astro::Tracker t; t.bind(drv);
+    astro::Config c = cfg; c.startDelayS = 0.f;
+    const uint32_t now = 200000u;
+    t.start(c, now);
+    t.tick(now + 1);
+    CHECK(t.status().phase == astro::Phase::Fault, "H1: shutter-open failure enters Fault");
+    CHECK(drv.closes_ == 1, "H2: shutter-open failure attempts shutter close");
+  }
+
+  // 케이스 I: 긴 loop 지연에도 추적 명령은 한 번만 보내고 재앵커
+  {
+    CountingDriver drv;
+    astro::Tracker t; t.bind(drv);
+    astro::Config c = cfg; c.startDelayS = 120.f;
+    const uint32_t now = 300000u;
+    t.start(c, now);
+    t.tick(now + 10 * kStep);
+    CHECK(drv.steps_ == 1, "I1: delayed tick emits one track command");
+    t.tick(now + 10 * kStep + 1);
+    CHECK(drv.steps_ == 1, "I2: delayed tick reanchors next command");
+  }
+
+  // 케이스 J: 증분 디더링 위치가 0 → +amp → -amp → +amp가 됨
+  {
+    CountingDriver drv;
+    astro::Tracker t; t.bind(drv);
+    astro::Config c = cfg;
+    c.startDelayS = 0.f; c.exposureS = 0.01f; c.gapS = 0.f;
+    c.frames = 4; c.ditherEvery = 1; c.ditherAmpDeg = 0.5f; c.settleS = 0.5f;
+    const uint32_t T = 400000u;
+    t.start(c, T);
+    t.tick(T + 1);       // open #1
+    t.tick(T + 251);     // Opening → Exposing
+    t.tick(T + 262);     // Exposing → Closing
+    t.tick(T + 512);     // +0.5°
+    t.tick(T + 1013);    // Settling → Gap
+    t.tick(T + 1014);    // open #2
+    t.tick(T + 1265);    // Opening → Exposing
+    t.tick(T + 1276);    // Exposing → Closing
+    t.tick(T + 1526);    // -0.5°
+    t.tick(T + 2027);    // Settling → Gap
+    t.tick(T + 2028);    // open #3
+    t.tick(T + 2279);    // Opening → Exposing
+    t.tick(T + 2290);    // Exposing → Closing
+    t.tick(T + 2540);    // +0.5°
+    CHECK(drv.dither_.size() == 3 && drv.dither_[0] == 5 &&
+          drv.dither_[1] == -10 && drv.dither_[2] == 10,
+          "J1: dither alternates around baseline");
   }
 
   // 케이스 C: tracking=false면 호출 없음
