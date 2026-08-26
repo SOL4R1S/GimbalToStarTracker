@@ -7,7 +7,7 @@ A7M3 + DJI RS 4  +  ESP32(SN65HVD230)  →  sidereal tracking + bulb shutter con
                                         →  30s+ pinpoint star exposures on a wedge
 ```
 
-[한국어 안내는 아래](#한국어-요약)
+[English](README.md) | [한국어](ko.md)
 
 ## Why this works
 
@@ -140,23 +140,3 @@ This is an independent, community interoperability project. It contains **no cod
 
 Apache-2.0 — see [LICENSE](LICENSE).
 
----
-
-# 한국어 요약
-
-**이것이 뭔가**: 손들질 카메라 짐벌(DJI RS 시리즈)을 천체사진용 적도의 마운트로 바꾸는 ESP32 펌웨어. HONOR 로봇폰의 '적도의 모드'와 동일한 원리를 DIY로 재현.
-
-**원리**: 극축에 정렬된 pan축을 시디리얼 레이트(15.04″/s)로 회전. DJI RS SDK의 위치 제어 해상도(0.1° 이동 × 최대 25.5초 실행)로 정확히 구현 가능 — 23,934ms마다 yaw +0.1° 증분 명령 연쇄(오차 +19.6ppm). 셔터는 짐벌 유선 경유로 벌브 무제한.
-
-**빠른 시작**:
-```bash
-pip3 install platformio
-python3 -m platformio run -e esp32dev          # 빌드
-python3 -m platformio run -e esp32dev -t upload # 업로드
-# 전화기로 WiFi 'GimbalToStarTracker' 접속 → http://192.168.4.1
-```
-하드웨어 없이 웹앱부터 체험: 위의 호스트 시뮬레이터 명령(영문 섹션 Build & flash 참조).
-
-**짐벌 지원**: DJI RS ✅ / ZHIYUN(Weebill-S·Crane M3 세대) 🟡 코드 완성·실기 캘리브레이션 대기 / FeiyuTech ❌ 조사 필요.
-
-**주의**: 기본 AP 비밀번호(`astro1234`)는 공개 저장소 값이니 `-DAP_PASS`로 변경하세요. 촬영 중인 노출 보호를 위해 stop은 언제든 누를 수 있지만(Opening/Exposing 중 정지 시 셔터 자동 닫힘), 장렌즈 무인 촬영 전 밸런스·웨지 잠금을 반드시 확인하세요.
