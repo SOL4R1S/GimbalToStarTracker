@@ -86,6 +86,13 @@ class Tracker {
 
   const Status& status() const { return st_; }
 
+  // 현재 위상의 남은 시간(ms). Idle/Done에서는 항상 0.
+  uint32_t remainingMs(uint32_t now) const {
+    if (st_.phase == Phase::Idle || st_.phase == Phase::Done) return 0;
+    const uint32_t d = deadline_ms_ - now;                 // 롤오버 안전 비교
+    return static_cast<int32_t>(d) > 0 ? d : 0;
+  }
+
  private:
   void enter(uint32_t deadline, Phase p) { deadline_ms_ = deadline; st_.phase = p; }
 

@@ -123,6 +123,23 @@ int main() {
     CHECK(drv.closes_ == 2, "E4: two exposures closed");
   }
 
+  // 케이스 F: remainingMs() — 위상 잔여 시간 카운트다운 계약 (웹 UI "남음 Ns")
+  {
+    astro::Config c; c.startDelayS = 120.f;
+    CountingDriver drv;
+    astro::Tracker tr; tr.bind(drv);
+    const uint32_t T = 86400000u;                 // 부팅 24h 경과 시나리오
+    tr.start(c, T);
+    CHECK(tr.remainingMs(T) == 120000u, "F1 full delay reported");
+    tr.tick(T + 1);
+    CHECK(tr.remainingMs(T + 1) == 119999u, "F2 countdown decreases");
+    tr.tick(T + 120000u);
+    CHECK(tr.status().phase == astro::Phase::Opening, "F3 delay consumed -> Opening");
+    CHECK(tr.remainingMs(T + 120000u) == 250u, "F4 opening window remainder");
+    tr.stop(T + 120001u);
+    CHECK(tr.remainingMs(T + 120001u) == 0, "F5 idle remainder is zero");
+  }
+
   if (failures) { printf("%d FAILURE(S)\n", failures); return 1; }
   printf("ALL TESTS PASSED\n");
   return 0;
