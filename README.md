@@ -28,23 +28,72 @@ Verified against DJI's official protocol document and sample frame: our frame bu
 
 ## Hardware
 
-| Part | Notes |
+### Bill of materials
+
+| # | Item | Spec / notes | Est. price |
+|---|---|---|---|
+| 1 | ESP32 DevKit | WROOM-32 or S3. TWAI (CAN) controller is built into the chip — no external CAN controller needed. Any board exposing two free GPIOs works (defaults: GPIO21=TX, GPIO22=RX, changeable via `-DTRACK_TX_PIN/-DTRACK_RX_PIN`). | ₩5k–12k |
+| 2 | CAN transceiver breakout | **SN65HVD230** (TI, 3.3 V). Pins you'll use: `D`(1), `GND`(2), `VCC`(3), `R`(4), `RS`(8), `CANH`(7), `CANL`(6). Do **not** buy 5 V chips (MCP2551, TJA1050) — logic levels mismatch. Most breakouts have a 120 Ω jumper on board. | ₩2k–4k |
+| 3 | Gimbal-side connector | The RSA/NATO accessory port uses a proprietary 6-pin connector. Easiest sources: (a) a cheap **"DJI RS Focus Wheel cable"** cut open and tapped, or (b) an RSA pigtail from the aftermarket. You only need CANH, CANL, GND. | ₩5k–15k |
+| 4 | Hook-up wire & misc | 26–30 AWG silicone wire ×4 (or dupont jumpers for bench testing), heatshrink, solder. | ₩3k |
+| 5 | USB power bank + cable | Field power for the DevKit. A 5,000 mAh brick runs the ESP32 for days. | usually owned |
+| 6 | Wedge tilted to your latitude | Pan axis must point at Polaris. A geared/ball head locked hard works for wide-angle; dedicated equatorial wedges are nicer. | usually owned |
+| 7 | Tools | Multimeter (termination + continuity checks), soldering iron, side cutters. | — |
+
+Electronics total ≈ **₩15k–35k** excluding things you already own. No USB-CAN adapter needed on the ESP32 path — the TWAI peripheral speaks CAN natively. (If you'd rather prototype from a PC first, a USBCAN-II adapter plus [ConstantRobotics/DJIR_SDK](https://github.com/ConstantRobotics/DJIR_SDK) also works.)
+
+### Where the gimbal exposes CAN
+
+On the **RS 4**, the RSA/NATO ports are to the **left of the touchscreen** (the right-side NATO rail is mechanical only). Pinout per DJI's *R SDK Protocol* doc §3.1.2:
+
+| Pin | Signal | Notes |
+|---|---|---|
+| 1 | VCC | 8 V ±0.4, 0.8 A rated — only enabled when AD_COM detects an accessory (10–100 kΩ pull-down) |
+| 2 | CANL | ← we use this |
+| 3 | SBUS_RX | unused here |
+| 4 | CANH | ← we use this |
+| 5 | AD_COM | accessory-detect pull-down if you want port power |
+| 6 | GND | ← required (common ground) |
+
+This table was published for RS 2-generation RSA ports; the RS 4 kept the same connector family and Focus-Wheel compatibility. **Verify with a multimeter before the first power-on anyway** — the transceiver module is your fuse.
+
+Sourcing the connector: search marketplaces for *"DJI RS focus motor cable"* or *"Ronin RSA cable"*; cut the accessory end off and strip CANH/CANL/GND. Soldering to the gimbal body is not required and not recommended.
+
+### Wiring
+
+MCU ↔ transceiver:
+
+| SN65HVD230 pin | connects to |
 |---|---|
-| ESP32 DevKit (WROOM-32 or S3) | TWAI (CAN) controller is built in |
-| SN65HVD230 breakout | 3.3 V CAN transceiver — do **not** use 5 V chips (MCP2551/TJA1050) |
-| DJI RS 3 Pro / RS 4 / RS 4 Pro / RS 5 | RSA/NATO port exposes CAN (left side of touchscreen on RS 4) |
-| Camera control cable | RS 4 ships with a USB-C cable; A7M3 also works over Sony Multi |
-| Wedge tilted to your latitude | pan axis points at Polaris; wide-angle tolerates a few degrees of error |
-| Optional: USB power bank, 120 Ω termination check | measure CANH–CANL resistance before first power-on |
+| D (1) | ESP32 GPIO21 (TWAI TX) |
+| R (4) | ESP32 GPIO22 (TWAI RX) |
+| VCC (3) | ESP32 3V3 |
+| GND (2) | ESP32 GND |
+| RS (8) | **GND** — high-speed mode; required at 1 Mbps (do not slope-limit) |
+| CANH (7) | → gimbal CANH |
+| CANL (6) | → gimbal CANL |
 
-Wiring (transceiver side):
+Transceiver ↔ gimbal: three wires total (CANH, CANL, GND). Common ground between the ESP32 circuit and the gimbal is mandatory even though CAN is differential.
 
-```
-ESP32 GPIO21(TX) → SN65HVD230 D          SN65HVD230 CANH/CANL → RS4 RSA/NATO CANH/CANL
-ESP32 GPIO22(RX) ← SN65HVD230 R          SN65HVD230 GND       → RS4 GND   (common ground required)
-SN65HVD230 RS(8) → GND (high-speed mode for 1 Mbps)
-ESP32 powered from its own USB power bank
-```
+### Bus termination (120 Ω)
+
+With everything **powered off**, measure resistance between CANH and CANL at your cable:
+
+- **≈60 Ω** → the gimbal already terminates its end; leave the module's 120 Ω jumper **open**.
+- **Very high (>kΩ)** → close the module's 120 Ω jumper.
+- Fluctuating mid-values mean a half-seated connector — reseat and re-measure.
+
+### Powering the ESP32
+
+- **Recommended**: independent USB power bank on the DevKit. Isolated from gimbal rails, runs all night, nothing to configure.
+- Advanced: power from RSA pin 1 (8 V) through a buck converter to 5 V/VIN. Only works if AD_COM has the pull-down that makes the port enable its supply — and note the 0.8 A budget is shared with other accessories.
+
+### Bring-up order
+
+1. Everything unpowered: continuity-check the three wires end-to-end; measure termination as above.
+2. Flash firmware first, power the ESP32 alone: phone joins the AP, `/probe` returning `{"ok":false,...}` is correct while CAN isn't connected yet.
+3. Gimbal OFF → attach CANH/CANL/GND → power gimbal → `/probe` should return `{"ok":true}`.
+4. Only now attach the camera control cable and run the shutter test shot.
 
 ## Build & flash
 
