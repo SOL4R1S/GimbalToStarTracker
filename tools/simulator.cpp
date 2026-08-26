@@ -2,14 +2,17 @@
 // /stop, /testshot, /probe)을 제공하고 실제 astro::Tracker를 구동한다.
 // 빌드: g++ -std=c++17 -I include -I third_party tools/simulator.cpp \
 //          src/djiprotocol.cpp -o build/simulator
-// 실행: ./build/simulator [port]   (기본 8080, 웹루트 = web/)
+// 실행: ./build/simulator [port]  (기본 8080, 웹루트 = web/)
 #include "gimbal_driver.h"
 #include "tracker.h"
 #include "httplib.h"
 
 #include <chrono>
+#include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <fstream>
+#include <mutex>
 #include <sstream>
 #include <thread>
 
@@ -34,6 +37,23 @@ class SimulatedDriver : public GimbalDriver {
   bool shutter_ = false; uint32_t steps_ = 0;
 };
 
+static bool readFloat(const httplib::Params& params, const char* key, float& value) {
+  auto it = params.find(key);
+  if (it == params.end()) return true;
+  char* end = nullptr;
+  const float parsed = std::strtof(it->second.c_str(), &end);
+  if (end == it->second.c_str() || *end != '\0' || !std::isfinite(parsed)) return false;
+  value = parsed;
+  return true;
+}
+
+static void sendError(httplib::Response& res, int status, const char* error) {
+  char buf[96];
+  std::snprintf(buf, sizeof(buf), "{\"ok\":false,\"error\":\"%s\"}", error);
+  res.status = status;
+  res.set_content(buf, "application/json");
+}
+
 int main(int argc, char** argv) {
   const int port = argc > 1 ? std::atoi(argv[1]) : 8080;
   std::ifstream html("web/index.html");
@@ -47,23 +67,28 @@ int main(int argc, char** argv) {
 
   bool testshot_open = false;
   uint32_t testshot_deadline = 0;
+  std::mutex state_mutex;
 
   httplib::Server svr;
   svr.Get("/", [&](const httplib::Request&, httplib::Response& res) {
     res.set_content(page, "text/html; charset=utf-8");
   });
   svr.Get("/status", [&](const httplib::Request&, httplib::Response& res) {
-    if (testshot_open && nowMs() >= testshot_deadline) { drv.shutterClose(); testshot_open = false; }
+    std::lock_guard<std::mutex> lock(state_mutex);
     const auto& s = tracker.status();
-    char buf[320];
+    const uint32_t now = nowMs();
+    if (testshot_open && static_cast<int32_t>(now - testshot_deadline) >= 0) {
+      drv.shutterClose(); testshot_open = false;
+    }
+    char buf[448];
     float yaw; drv.getYawDeg(yaw);
-    snprintf(buf, sizeof(buf),
-      "{\"phase\":\"%s\",\"remainS\":%u,\"frame\":%u,\"frames\":%u,\"trackSteps\":%lu,"
+    std::snprintf(buf, sizeof(buf),
+      "{\"phase\":\"%s\",\"fault\":\"%s\",\"remainS\":%u,\"frame\":%u,\"frames\":%u,\"trackSteps\":%lu,"
       "\"yaw\":%.2f,\"driver\":\"%s\",\"testshot\":%s,"
       "\"cfg\":{\"delay\":%.1f,\"exposure\":%.1f,\"gap\":%.1f,\"frames\":%u,"
       "\"ditherEvery\":%u,\"ditherAmp\":%.2f,\"settle\":%.1f,\"tracking\":%s}}",
-      astro::phaseName(s.phase),
-      static_cast<unsigned>(tracker.remainingMs(nowMs()) / 1000u),
+      astro::phaseName(s.phase), astro::faultName(s.fault),
+      static_cast<unsigned>(tracker.remainingMs(now) / 1000u),
       s.frame, s.frames,
       static_cast<unsigned long>(s.trackSteps), yaw, drv.name(),
       testshot_open ? "true" : "false",
@@ -72,33 +97,88 @@ int main(int argc, char** argv) {
       cfg.tracking ? "true" : "false");
     res.set_content(buf, "application/json");
   });
-  auto num = [](const httplib::Params& p, const char* k, float def) {
-    auto it = p.find(k); return it != p.end() ? std::atof(it->second.c_str()) : def;
-  };
   svr.Post("/config", [&](const httplib::Request& req, httplib::Response& res) {
-    cfg.startDelayS = num(req.params, "delay", cfg.startDelayS);
-    cfg.exposureS   = num(req.params, "exposure", cfg.exposureS);
-    cfg.gapS        = num(req.params, "gap", cfg.gapS);
-    if (auto it = req.params.find("frames"); it != req.params.end())
-      cfg.frames = std::atoi(it->second.c_str());
-    cfg.tracking    = req.params.count("tracking") > 0;
-    cfg.ditherEvery = static_cast<uint8_t>(num(req.params, "ditherEvery", cfg.ditherEvery));
-    cfg.ditherAmpDeg= num(req.params, "ditherAmp", cfg.ditherAmpDeg);
-    cfg.settleS     = num(req.params, "settle", cfg.settleS);
+    std::lock_guard<std::mutex> lock(state_mutex);
+    if (tracker.isActive() || tracker.status().phase == astro::Phase::Fault) {
+      sendError(res, 409, "sequence-active"); return;
+    }
+    astro::Config next = cfg;
+    if (!readFloat(req.params, "delay", next.startDelayS) ||
+        !readFloat(req.params, "exposure", next.exposureS) ||
+        !readFloat(req.params, "gap", next.gapS) ||
+        !readFloat(req.params, "ditherAmp", next.ditherAmpDeg) ||
+        !readFloat(req.params, "settle", next.settleS)) {
+      sendError(res, 400, "number-format"); return;
+    }
+    if (auto it = req.params.find("frames"); it != req.params.end()) {
+      char* end = nullptr;
+      const long frames = std::strtol(it->second.c_str(), &end, 10);
+      if (end == it->second.c_str() || *end != '\0' || frames < 1 || frames > 65535) {
+        sendError(res, 400, "frames-range"); return;
+      }
+      next.frames = static_cast<uint16_t>(frames);
+    }
+    if (req.params.find("ditherEvery") != req.params.end()) {
+      float every;
+      if (!readFloat(req.params, "ditherEvery", every) || every < 0.f || every > 255.f ||
+          std::floor(every) != every) {
+        sendError(res, 400, "dither-every-range"); return;
+      }
+      next.ditherEvery = static_cast<uint8_t>(every);
+    }
+    next.tracking = req.params.find("tracking") != req.params.end();
+    if (const char* error = astro::configError(next)) {
+      sendError(res, 400, error); return;
+    }
+    cfg = next;
     res.set_content("{\"ok\":true}", "application/json");
   });
   svr.Get("/start", [&](const httplib::Request&, httplib::Response& res) {
-    tracker.start(cfg, nowMs()); res.set_content("started", "text/plain"); });
+    std::lock_guard<std::mutex> lock(state_mutex);
+    if (testshot_open) { sendError(res, 409, "testshot-active"); return; }
+    if (tracker.status().phase == astro::Phase::Fault) {
+      sendError(res, 409, "fault-reset-required"); return;
+    }
+    if (tracker.isActive() || !tracker.start(cfg, nowMs())) {
+      sendError(res, 409, "sequence-active"); return;
+    }
+    res.set_content("started", "text/plain");
+  });
   svr.Get("/stop", [&](const httplib::Request&, httplib::Response& res) {
-    tracker.stop(nowMs()); res.set_content("stopped", "text/plain"); });
+    std::lock_guard<std::mutex> lock(state_mutex);
+    if (testshot_open) { drv.shutterClose(); testshot_open = false; }
+    tracker.stop(nowMs());
+    res.set_content("stopped", "text/plain");
+  });
   svr.Get("/testshot", [&](const httplib::Request&, httplib::Response& res) {
-    drv.shutterOpen(); testshot_open = true;
+    std::lock_guard<std::mutex> lock(state_mutex);
+    if (testshot_open || tracker.isActive() ||
+        tracker.status().phase == astro::Phase::Fault) {
+      sendError(res, 409, "sequence-active"); return;
+    }
+    if (!drv.shutterOpen()) { sendError(res, 503, "shutter-open"); return; }
+    testshot_open = true;
     testshot_deadline = nowMs() + 8000;
-    res.set_content("testshot open 8s", "text/plain"); });
+    res.set_content("testshot open 8s", "text/plain");
+  });
   svr.Get("/probe", [&](const httplib::Request&, httplib::Response& res) {
-    res.set_content(drv.probe(), "application/json"); });
+    std::lock_guard<std::mutex> lock(state_mutex);
+    res.set_content(drv.probe(), "application/json");
+  });
 
-  std::thread tick([&] { for (;;) { tracker.tick(nowMs()); std::this_thread::sleep_for(std::chrono::milliseconds(20)); } });
-  fprintf(stderr, "simulator on http://127.0.0.1:%d\n", port);
+  std::thread tick([&] {
+    for (;;) {
+      {
+        std::lock_guard<std::mutex> lock(state_mutex);
+        tracker.tick(nowMs());
+        if (testshot_open && static_cast<int32_t>(nowMs() - testshot_deadline) >= 0) {
+          drv.shutterClose(); testshot_open = false;
+        }
+      }
+      std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    }
+  });
+  tick.detach();
+  std::fprintf(stderr, "simulator on http://127.0.0.1:%d\n", port);
   svr.listen("127.0.0.1", port);
 }

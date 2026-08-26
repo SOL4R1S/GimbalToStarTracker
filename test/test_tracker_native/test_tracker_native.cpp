@@ -10,6 +10,7 @@
 #include "tracker.h"
 
 #include <cstdio>
+#include <limits>
 #include <vector>
 
 class CountingDriver : public GimbalDriver {
@@ -211,6 +212,25 @@ int main() {
     CHECK(tr.remainingMs(T + 120001u) == 0, "F5 idle remainder is zero");
   }
 
+
+  // 케이스 K: 공유 설정 검증은 유효 범위만 허용
+  {
+    astro::Config valid;
+    CHECK(astro::validateConfig(valid), "K1: default config is valid");
+    astro::Config zeroFrames = valid; zeroFrames.frames = 0;
+    CHECK(!astro::validateConfig(zeroFrames), "K2: zero frames rejected");
+    astro::Config negativeExposure = valid; negativeExposure.exposureS = -1.f;
+    CHECK(!astro::validateConfig(negativeExposure), "K3: negative exposure rejected");
+    astro::Config nonFinite = valid;
+    nonFinite.gapS = std::numeric_limits<float>::quiet_NaN();
+    CHECK(!astro::validateConfig(nonFinite), "K4: non-finite gap rejected");
+    astro::Config tooMuchDither = valid; tooMuchDither.ditherAmpDeg = 10.1f;
+    CHECK(!astro::validateConfig(tooMuchDither), "K5: excessive dither rejected");
+    astro::Config boundary = valid;
+    boundary.startDelayS = boundary.exposureS = boundary.gapS = 86400.f;
+    boundary.frames = 65535; boundary.ditherAmpDeg = 10.f; boundary.settleS = 60.f;
+    CHECK(astro::validateConfig(boundary), "K6: upper boundaries accepted");
+  }
   if (failures) { printf("%d FAILURE(S)\n", failures); return 1; }
   printf("ALL TESTS PASSED\n");
   return 0;

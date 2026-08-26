@@ -30,6 +30,25 @@ struct Config {
   float    settleS     = 2.f;
 };
 
+constexpr float kMaxConfigSeconds = 86400.f;
+
+inline const char* configError(const Config& c) {
+  if (!std::isfinite(c.startDelayS) || c.startDelayS < 0.f ||
+      c.startDelayS > kMaxConfigSeconds) return "delay-range";
+  if (!std::isfinite(c.exposureS) || c.exposureS < 0.1f ||
+      c.exposureS > kMaxConfigSeconds) return "exposure-range";
+  if (!std::isfinite(c.gapS) || c.gapS < 0.f ||
+      c.gapS > kMaxConfigSeconds) return "gap-range";
+  if (c.frames == 0) return "frames-range";
+  if (!std::isfinite(c.ditherAmpDeg) || c.ditherAmpDeg < 0.f ||
+      c.ditherAmpDeg > 10.f) return "dither-amp-range";
+  if (!std::isfinite(c.settleS) || c.settleS < 0.5f ||
+      c.settleS > 60.f) return "settle-range";
+  return nullptr;
+}
+
+inline bool validateConfig(const Config& c) { return configError(c) == nullptr; }
+
 enum class Phase : uint8_t {
   Idle, Delay, Opening, Exposing, Closing, Dithering, Settling, Gap, Done, Fault
 };

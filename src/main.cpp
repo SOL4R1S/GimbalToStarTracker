@@ -11,6 +11,8 @@
 #include <WiFi.h>
 #include <WebServer.h>
 #include <Preferences.h>
+#include <cmath>
+#include <cstdlib>
 
 #include "djiprotocol.h"
 #include "gimbal_driver.h"
@@ -52,18 +54,35 @@ static void loadConfig() {
   cfg.ditherAmpDeg= prefs.getFloat("dithA", 0.5f);
   cfg.settleS     = prefs.getFloat("settle", 2.f);
   prefs.end();
+  if (!astro::validateConfig(cfg)) cfg = astro::Config{};
+}
+
+static void sendError(int status, const char* error) {
+  char buf[96];
+  snprintf(buf, sizeof(buf), "{\"ok\":false,\"error\":\"%s\"}", error);
+  server.send(status, "application/json", buf);
+}
+
+static bool readFloatArg(const char* key, float& value) {
+  if (!server.hasArg(key)) return true;
+  String raw = server.arg(key);
+  char* end = nullptr;
+  const float parsed = std::strtof(raw.c_str(), &end);
+  if (end == raw.c_str() || *end != '\0' || !std::isfinite(parsed)) return false;
+  value = parsed;
+  return true;
 }
 
 static void handleStatus() {
   const auto& s = tracker.status();
   float yaw; const bool haveYaw = driver.getYawDeg(yaw);
-  char buf[320];
+  char buf[448];
   snprintf(buf, sizeof(buf),
-    "{\"phase\":\"%s\",\"remainS\":%u,\"frame\":%u,\"frames\":%u,\"trackSteps\":%lu,"
+    "{\"phase\":\"%s\",\"fault\":\"%s\",\"remainS\":%u,\"frame\":%u,\"frames\":%u,\"trackSteps\":%lu,"
     "\"yaw\":%s,\"driver\":\"%s\",\"testshot\":%s,"
     "\"cfg\":{\"delay\":%.1f,\"exposure\":%.1f,\"gap\":%.1f,\"frames\":%u,"
     "\"ditherEvery\":%u,\"ditherAmp\":%.2f,\"settle\":%.1f,\"tracking\":%s}}",
-    astro::phaseName(s.phase),
+    astro::phaseName(s.phase), astro::faultName(s.fault),
     static_cast<unsigned>(tracker.remainingMs(millis()) / 1000u),
     s.frame, s.frames,
     static_cast<unsigned long>(s.trackSteps),
@@ -76,19 +95,50 @@ static void handleStatus() {
 }
 
 static void handleConfig() {
-  auto f = [](const char* k, float def) {
-    return server.hasArg(k) ? server.arg(k).toFloat() : def;
-  };
-  cfg.startDelayS = f("delay", cfg.startDelayS);
-  cfg.exposureS   = f("exposure", cfg.exposureS);
-  cfg.gapS        = f("gap", cfg.gapS);
-  if (server.hasArg("frames"))    cfg.frames      = server.arg("frames").toInt();
-  cfg.tracking    = server.hasArg("tracking");
-  cfg.ditherEvery = static_cast<uint8_t>(f("ditherEvery", cfg.ditherEvery));
-  cfg.ditherAmpDeg= f("ditherAmp", cfg.ditherAmpDeg);
-  cfg.settleS     = f("settle", cfg.settleS);
+  if (tracker.isActive() || tracker.status().phase == astro::Phase::Fault) {
+    sendError(409, "sequence-active");
+    return;
+  }
+
+  astro::Config next = cfg;
+  if (!readFloatArg("delay", next.startDelayS) ||
+      !readFloatArg("exposure", next.exposureS) ||
+      !readFloatArg("gap", next.gapS) ||
+      !readFloatArg("ditherAmp", next.ditherAmpDeg) ||
+      !readFloatArg("settle", next.settleS)) {
+    sendError(400, "number-format");
+    return;
+  }
+  if (server.hasArg("frames")) {
+    const long frames = server.arg("frames").toInt();
+    if (frames < 1 || frames > 65535) { sendError(400, "frames-range"); return; }
+    next.frames = static_cast<uint16_t>(frames);
+  }
+  if (server.hasArg("ditherEvery")) {
+    float every;
+    if (!readFloatArg("ditherEvery", every) || every < 0.f || every > 255.f ||
+        std::floor(every) != every) {
+      sendError(400, "dither-every-range");
+      return;
+    }
+    next.ditherEvery = static_cast<uint8_t>(every);
+  }
+  next.tracking = server.hasArg("tracking");
+  if (const char* error = astro::configError(next)) {
+    sendError(400, error);
+    return;
+  }
+  cfg = next;
   saveConfig();
   server.send(200, "application/json", "{\"ok\":true}");
+}
+
+static void stopAll(uint32_t now) {
+  if (testshot_open_) {
+    driver.shutterClose();
+    testshot_open_ = false;
+  }
+  tracker.stop(now);
 }
 
 void setup() {
@@ -111,10 +161,24 @@ void setup() {
   server.on("/status", handleStatus);
   server.on("/probe", [] { server.send(200, "application/json", driver.probe().c_str()); });
   server.on("/config", HTTP_POST, handleConfig);
-  server.on("/start", [] { tracker.start(cfg, millis()); server.send(200, "text/plain", "started"); });
-  server.on("/stop",  [] { tracker.stop(millis());  server.send(200, "text/plain", "stopped"); });
+  server.on("/start", [] {
+    if (testshot_open_) { sendError(409, "testshot-active"); return; }
+    if (tracker.status().phase == astro::Phase::Fault) {
+      sendError(409, "fault-reset-required"); return;
+    }
+    if (tracker.isActive() || !tracker.start(cfg, millis())) {
+      sendError(409, "sequence-active"); return;
+    }
+    server.send(200, "text/plain", "started");
+  });
+  server.on("/stop", [] { stopAll(millis()); server.send(200, "text/plain", "stopped"); });
   server.on("/testshot", [] {
-    driver.shutterOpen();
+    if (testshot_open_ || tracker.isActive() ||
+        tracker.status().phase == astro::Phase::Fault) {
+      sendError(409, "sequence-active");
+      return;
+    }
+    if (!driver.shutterOpen()) { sendError(503, "shutter-open"); return; }
     testshot_open_ = true;
     testshot_deadline_ = millis() + 8000;
     server.send(200, "text/plain", "testshot open 8s");
@@ -142,7 +206,7 @@ void loop() {
           tracker.status().phase == astro::Phase::Done)
         tracker.start(cfg, millis());
       else
-        tracker.stop(millis());
+        stopAll(millis());
     }
   }
   last_btn_ = b;

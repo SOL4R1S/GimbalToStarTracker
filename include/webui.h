@@ -30,16 +30,24 @@ button.stop{background:#b91c1c} button.test{background:#334155}
 <label>정착(s)<input name="settle" type="number" step="0.1" min="0.5"></label>
 <button type="submit">&#128190; 저장</button>
 </form></fieldset>
-<button onclick="fetch('/start').then(st)">&#9654;&#65039; 시작</button>
-<button class="stop" onclick="fetch('/stop').then(st)">&#11035;&#65039; 정지</button>
-<button class="test" onclick="fetch('/testshot').then(st)">&#128248; 테스트컷(8s)</button>
+<button onclick="command('/start')">&#9654;&#65039; 시작</button>
+<button class="stop" onclick="command('/stop')">&#11035;&#65039; 정지</button>
+<button class="test" onclick="command('/testshot')">&#128248; 테스트컷(8s)</button>
 <script>
 const PH_KO={idle:'대기',delay:'대기 딜레이',opening:'셔터 열림',exposing:'노출중',
-closing:'셔터 닫힘',dither:'디더링',settle:'정착',gap:'갭',done:'완료'};
+closing:'셔터 닫힘',dither:'디더링',settle:'정착',gap:'갭',done:'완료',fault:'오류'};
 function fmt(j){return `<b>${PH_KO[j.phase]??j.phase}</b> ${j.phase==='done'?'&#9989;':''}`+
+ `${j.phase==='fault'?` <span style="color:#f87171">${j.fault}</span>`:''}`+
  `${(j.remainS>0)?` &middot; 남음 ${j.remainS}s`:''}<br>`+
  `프레임 ${j.frame}/${j.frames}<br>트랙 ${j.trackSteps}스텝 · yaw ${j.yaw??'-'}&deg;<br>`+
  `<progress max="${j.frames}" value="${j.frame}" style="width:100%">`}
+async function command(path){
+ try{
+  const r=await fetch(path);
+  if(!r.ok){const j=await r.json().catch(()=>({}));throw new Error(j.error??`HTTP ${r.status}`)}
+  await st();
+ }catch(e){document.getElementById('status').innerHTML=`<span style="color:#f87171">오류: ${e.message}</span>`}
+}
 let prefilled=false;
 async function st(){try{const j=await(await fetch('/status')).json();document.getElementById('status').innerHTML=fmt(j);
  const f=document.getElementById('f');
