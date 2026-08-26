@@ -1,8 +1,8 @@
 //
-// main.cpp — AstroTrack: ESP32 적도의 컨트롤러
+// main.cpp — GimbalToStarTracker: ESP32 적도의 컨트롤러
 //
 //  * 짐벌: DJI RS (CAN SDK, TWAI) — 다른 브랜드는 include/의 스텁 참조
-//  * UI  : SoftAP "AstroTrack" → http://192.168.4.1
+//  * UI  : SoftAP "GimbalToStarTracker" → http://192.168.4.1
 //  * 버튼: BOOT(GPIO0) = 시작/정지 토글
 //  * 설정: NVS(Preferences)에 저장 — 재부팅 후 유지
 //
@@ -104,7 +104,7 @@ void setup() {
   }
   tracker.bind(driver);
 
-  WiFi.softAP("AstroTrack", AP_PASS);
+  WiFi.softAP("GimbalToStarTracker", AP_PASS);
   Serial.printf("[NET] AP up: http://%s\n", WiFi.softAPIP().toString().c_str());
 
   server.on("/", [] { server.send_P(200, "text/html", INDEX_HTML); });

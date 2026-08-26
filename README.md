@@ -77,7 +77,7 @@ mkdir -p build && g++ -std=c++17 -Wall -I include -I third_party \
 
 1. Balance camera → set gimbal mode switch to **FPV** → delete Bluetooth shutter pairing (wired only)
 2. Connect RS 4 ↔ camera with the control cable; half-press the gimbal's camera button — AF twitch confirms the wired channel
-3. Power ESP32 → join WiFi AP **AstroTrack** (default pass `astro1234`, override via `-DAP_PASS`) → open `http://192.168.4.1`
+3. Power ESP32 → join WiFi AP **GimbalToStarTracker** (default pass `astro1234`, override via `-DAP_PASS`) → open `http://192.168.4.1`
 4. Configure delay/exposure/interval/frames/dithering → Start → put the phone away
 5. BOOT button on the board = hardware start/stop toggle
 
@@ -153,7 +153,7 @@ Apache-2.0 — see [LICENSE](LICENSE).
 pip3 install platformio
 python3 -m platformio run -e esp32dev          # 빌드
 python3 -m platformio run -e esp32dev -t upload # 업로드
-# 전화기로 WiFi 'AstroTrack' 접속 → http://192.168.4.1
+# 전화기로 WiFi 'GimbalToStarTracker' 접속 → http://192.168.4.1
 ```
 하드웨어 없이 웹앱부터 체험: 위의 호스트 시뮬레이터 명령(영문 섹션 Build & flash 참조).
 
