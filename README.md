@@ -32,7 +32,7 @@ Verified against DJI's official protocol document and sample frame: our frame bu
 
 | # | Item | Spec / notes | Est. price |
 |---|---|---|---|
-| 1 | ESP32 DevKit | WROOM-32 or S3. TWAI (CAN) controller is built into the chip — no external CAN controller needed. Any board exposing two free GPIOs works (defaults: GPIO21=TX, GPIO22=RX, changeable via `-DTRACK_TX_PIN/-DTRACK_RX_PIN`). | ₩5k–12k |
+| 1 | ESP32 DevKit | WROOM-32, S3 or **C3** all work — the TWAI (CAN) controller is built into the chip, so no external CAN controller is needed. Any board exposing two free GPIOs works (defaults: GPIO21=TX, GPIO22=RX, changeable via `-DTRACK_TX_PIN/-DTRACK_RX_PIN`). **The C3 has no GPIO22 — use `env:esp32c3` (TX=4, RX=5)**. | ₩5k–12k |
 | 2 | CAN transceiver breakout | **SN65HVD230** (TI, 3.3 V). Pins you'll use: `D`(1), `GND`(2), `VCC`(3), `R`(4), `RS`(8), `CANH`(7), `CANL`(6). Do **not** buy 5 V chips (MCP2551, TJA1050) — logic levels mismatch. Most breakouts have a 120 Ω jumper on board. | ₩2k–4k |
 | 3 | Gimbal-side connector | The RSA/NATO accessory port uses a proprietary 6-pin connector. Easiest sources: (a) a cheap **"DJI RS Focus Wheel cable"** cut open and tapped, or (b) an RSA pigtail from the aftermarket. You only need CANH, CANL, GND. | ₩5k–15k |
 | 4 | Hook-up wire & misc | 26–30 AWG silicone wire ×4 (or dupont jumpers for bench testing), heatshrink, solder. | ₩3k |

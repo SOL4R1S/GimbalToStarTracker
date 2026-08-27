@@ -32,7 +32,7 @@ DJI RS SDK의 위치 제어는 CAN 위에서 **0.1° 각도 단위 × 최대 25.
 
 | # | 부품 | 사양 / 메모 | 예상 가격 |
 |---|---|---|---|
-| 1 | ESP32 DevKit | WROOM-32 또는 S3. CAN 컨트롤러(TWAI)가 칩에 내장 — 외부 CAN 컨트롤러 불필요. GPIO 2핀만 비어 있으면 됨(기본 GPIO21=TX, GPIO22=RX, `-DTRACK_TX_PIN/-DTRACK_RX_PIN`으로 변경 가능). | ₩5k–12k |
+| 1 | ESP32 DevKit | WROOM-32, S3 또는 **C3** 모두 가능 — TWAI(CAN) 컨트롤러가 칩에 내장이라 외부 CAN 컨트롤러 불필요. GPIO 2핀만 비어 있으면 됨(기본 GPIO21=TX, GPIO22=RX, `-DTRACK_TX_PIN/-DTRACK_RX_PIN`으로 변경 가능). **C3는 GPIO22가 없어 `env:esp32c3`(TX=4, RX=5) 사용**. | ₩5k–12k |
 | 2 | CAN 트랜시버 모듈 | **SN65HVD230** (TI, 3.3V). 사용 핀: `D`(1), `GND`(2), `VCC`(3), `R`(4), `RS`(8), `CANH`(7), `CANL`(6). 5V 칩(MCP2551, TJA1050)은 로직 레벨 불일치로 **구매 금지**. 대부분의 모듈에 120Ω 점퍼 내장. | ₩2k–4k |
 | 3 | 짐벌측 커넥터 | RSA/NATO 포트는 전용 6핀 커넥터. 조달 방법: (a) 저가 **"DJI RS 포커스 모터/휠 케이블"**을 절단·탭, (b) 애프터마켓 RSA 피그테일. 필요한 건 CANH·CANL·GND 세 선. | ₩5k–15k |
 | 4 | 연결선·소모품 | 26–30 AWG 실리콘 와이어 4색(벤치 테스트는 듀폰 점퍼도 무방), 수축튜브, 납땜 용구. | ₩3k |

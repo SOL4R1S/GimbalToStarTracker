@@ -3,7 +3,8 @@
 //
 //  * 짐벌: DJI RS (CAN SDK, TWAI) — 다른 브랜드는 include/의 스텁 참조
 //  * UI  : SoftAP "GimbalToStarTracker" → http://192.168.4.1
-//  * 버튼: BOOT(GPIO0) = 시작/정지 토글
+//  * 버튼: BOOT 버튼(핀은 -DTRACK_BTN_PIN, 기본 GPIO0) = 시작/정지 토글
+//  * LED : 상태 LED(-DTRACK_LED_PIN, 기본 GPIO2)
 //  * 설정: NVS(Preferences)에 저장 — 재부팅 후 유지
 //
 
@@ -23,6 +24,22 @@
 #ifndef AP_PASS
 #define AP_PASS "astro1234"   // 야외 자체 AP라 최소 8자만 만족하면 충분
 #endif
+
+// 버튼/LED 핀은 platformio.ini에서 -DTRACK_BTN_PIN/-DTRACK_LED_PIN으로 지정.
+// 미지정 시 클래식 보드 기본값(부팅 버튼 GPIO0, 상태 LED GPIO2).
+#ifndef TRACK_BTN_PIN
+#define TRACK_BTN_PIN 0
+#endif
+#ifndef TRACK_LED_PIN
+#define TRACK_LED_PIN 2
+#endif
+#ifndef TRACK_LED_ACTIVE_LOW
+#define TRACK_LED_ACTIVE_LOW 0
+#endif
+
+static inline void ledSet(bool on) {
+  digitalWrite(TRACK_LED_PIN, TRACK_LED_ACTIVE_LOW ? !on : on);
+}
 
 static DjiCanDriver driver;
 static astro::Tracker tracker;
@@ -143,14 +160,15 @@ static void stopAll(uint32_t now) {
 
 void setup() {
   Serial.begin(115200);
-  pinMode(0, INPUT_PULLUP);
-  pinMode(2, OUTPUT);
+  pinMode(TRACK_BTN_PIN, INPUT_PULLUP);
+  pinMode(TRACK_LED_PIN, OUTPUT);
 
   loadConfig();
 
   if (!driver.begin()) {
     Serial.println("[FATAL] CAN(TWAI) init failed — 배선/종단 확인");
-    while (true) { digitalWrite(2, !digitalRead(2)); delay(120); }
+    bool blink = false;
+    while (true) { blink = !blink; ledSet(blink); delay(120); }
   }
   tracker.bind(driver);
 
@@ -198,10 +216,10 @@ void loop() {
   }
 
   // BOOT 버튼: 시작/정지 토글 (디바운스)
-  int b = digitalRead(0);
+  int b = digitalRead(TRACK_BTN_PIN);
   if (b == LOW && last_btn_ == HIGH) {
     delay(30);
-    if (digitalRead(0) == LOW) {
+    if (digitalRead(TRACK_BTN_PIN) == LOW) {
       if (tracker.status().phase == astro::Phase::Idle ||
           tracker.status().phase == astro::Phase::Done)
         tracker.start(cfg, millis());
@@ -211,5 +229,5 @@ void loop() {
   }
   last_btn_ = b;
 
-  digitalWrite(2, tracker.status().phase != astro::Phase::Idle ? HIGH : LOW);
+  ledSet(tracker.status().phase != astro::Phase::Idle);
 }
